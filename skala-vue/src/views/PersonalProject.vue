@@ -8,7 +8,7 @@ import { fetchBallparkWeather, fetchTodaysGames } from '@/services/mlbApi'
 const router = useRouter()
 const todaysGames = ref([])
 const gamesLoading = ref(true)
-const favoriteTeams = ref(JSON.parse(localStorage.getItem('mlb-favorite-teams') || '[]'))
+const favoriteTeams = ref(JSON.parse(localStorage.getItem('mlb-favorite-team') || '[]').slice(0, 1))
 const favoritePicker = ref('')
 const favoriteOptions = [
   { name: 'Los Angeles Dodgers', short: '다저스', logoUrl: 'https://www.mlbstatic.com/team-logos/119.svg' },
@@ -18,9 +18,19 @@ const favoriteOptions = [
   { name: 'Chicago Cubs', short: '컵스', logoUrl: 'https://www.mlbstatic.com/team-logos/112.svg' },
 ]
 const favoriteTeamData = computed(() => favoriteTeams.value.map((name) => favoriteOptions.find((team) => team.name === name)).filter(Boolean))
+const selectedFavorite = computed(() => favoriteTeamData.value[0] || null)
+const favoriteStadium = computed(() => {
+  const aliases = { 'Los Angeles Dodgers': 'Dodgers', 'New York Yankees': 'Yankees', 'Boston Red Sox': 'Red Sox', 'San Diego Padres': 'Padres', 'Chicago Cubs': 'Cubs' }
+  return stadiums.value.find((stadium) => stadium.team === aliases[selectedFavorite.value?.name]) || null
+})
+const displayedStadiums = computed(() => favoriteStadium.value ? [favoriteStadium.value] : stadiums.value.slice(0, 6))
+const displayedGames = computed(() => {
+  if (!selectedFavorite.value) return todaysGames.value.slice(0, 5)
+  return todaysGames.value.filter((game) => [game.home.name, game.away.name].includes(selectedFavorite.value.name))
+})
 const toggleFavorite = (team) => {
-  favoriteTeams.value = favoriteTeams.value.includes(team.name) ? favoriteTeams.value.filter((name) => name !== team.name) : [...favoriteTeams.value, team.name].slice(-3)
-  localStorage.setItem('mlb-favorite-teams', JSON.stringify(favoriteTeams.value))
+  favoriteTeams.value = favoriteTeams.value[0] === team.name ? [] : [team.name]
+  localStorage.setItem('mlb-favorite-team', JSON.stringify(favoriteTeams.value))
 }
 const addFavorite = () => {
   const team = favoriteOptions.find((option) => option.name === favoritePicker.value)
@@ -139,11 +149,11 @@ const navigateToStandings = () => {
       </div>
       <div class="dashboard-grid">
         <article class="dashboard-panel games-panel">
-          <div class="panel-heading"><div><span class="panel-kicker">TODAY'S GAMES</span><h3>오늘의 경기 일정</h3></div><span class="live-dot">{{ todaysGames.length }} GAMES</span></div>
+          <div class="panel-heading"><div><span class="panel-kicker">TODAY'S GAMES</span><h3>{{ selectedFavorite ? `${selectedFavorite.short} 오늘의 경기` : '오늘의 경기 일정' }}</h3></div><span class="live-dot">{{ displayedGames.length }} GAMES</span></div>
           <div v-if="gamesLoading" class="panel-empty">경기 일정을 불러오는 중입니다...</div>
-          <div v-else-if="!todaysGames.length" class="panel-empty">오늘 예정된 경기가 없습니다.</div>
+          <div v-else-if="!displayedGames.length" class="panel-empty">{{ selectedFavorite ? `${selectedFavorite.short}의 오늘 경기가 없습니다.` : '오늘 예정된 경기가 없습니다.' }}</div>
           <div v-else class="game-list">
-            <div v-for="game in todaysGames.slice(0, 5)" :key="game.id" class="game-row">
+            <div v-for="game in displayedGames" :key="game.id" class="game-row">
               <div class="game-time"><strong>{{ formatGameTime(game.startTime) }}</strong><small>{{ game.status }}</small></div>
               <div class="game-team"><img :src="game.away.logoUrl" :alt="game.away.name"><strong>{{ game.away.name }}</strong></div><span class="versus">@</span><div class="game-team home"><img :src="game.home.logoUrl" :alt="game.home.name"><strong>{{ game.home.name }}</strong></div>
               <small class="game-venue">{{ game.venue }}</small>
@@ -151,15 +161,15 @@ const navigateToStandings = () => {
           </div>
         </article>
         <article class="dashboard-panel favorites-panel">
-          <div class="panel-heading"><div><span class="panel-kicker">MY TEAMS</span><h3>즐겨찾는 팀</h3></div><span class="favorite-count">{{ favoriteTeams.length }}/3</span></div>
+          <div class="panel-heading"><div><span class="panel-kicker">MY TEAM</span><h3>즐겨찾는 팀</h3></div><span class="favorite-count">{{ favoriteTeams.length ? '1/1' : '0/1' }}</span></div>
           <div v-if="favoriteTeamData.length" class="favorite-list"><button v-for="team in favoriteTeamData" :key="team.name" class="favorite-team" @click="toggleFavorite(team)"><img :src="team.logoUrl" :alt="team.name"><span><strong>{{ team.short }}</strong><small>{{ team.name }}</small></span><b>★</b></button></div>
           <p v-else class="favorite-hint">좋아하는 팀을 추가하면 메인 화면에서 바로 확인할 수 있어요.</p>
-          <div class="favorite-add"><select v-model="favoritePicker" aria-label="즐겨찾기 팀 선택"><option value="">팀 선택...</option><option v-for="team in favoriteOptions.filter((option) => !favoriteTeams.includes(option.name))" :key="team.name" :value="team.name">{{ team.short }} · {{ team.name }}</option></select><button type="button" @click="addFavorite" :disabled="!favoritePicker || favoriteTeams.length >= 3">추가</button></div>
+          <div class="favorite-add"><select v-model="favoritePicker" aria-label="즐겨찾기 팀 선택"><option value="">팀 선택...</option><option v-for="team in favoriteOptions.filter((option) => option.name !== favoriteTeams[0])" :key="team.name" :value="team.name">{{ team.short }} · {{ team.name }}</option></select><button type="button" @click="addFavorite" :disabled="!favoritePicker">{{ favoriteTeams.length ? '변경' : '추가' }}</button></div>
         </article>
         <article class="dashboard-panel score-panel">
           <div class="panel-heading"><div><span class="panel-kicker">BALLPARK COMFORT</span><h3>오늘의 관람 적합도</h3></div><span class="score-badge">LIVE</span></div>
-          <div class="score-content"><div class="score-ring"><strong>{{ viewingScore(stadiums[0]?.weather) ?? '—' }}</strong><small>점</small></div><div><h4>{{ scoreLabel(viewingScore(stadiums[0]?.weather)) }}</h4><p>{{ stadiums[0]?.team }} 경기장 기준 · {{ stadiums[0]?.weather?.icon || '🌤️' }} {{ stadiums[0]?.weather?.temp ?? '—' }}°C</p></div></div>
-          <div class="score-factors"><span>☔ 강수 {{ stadiums[0]?.weather?.precipitation ?? '—' }} mm</span><span>💨 바람 {{ stadiums[0]?.weather?.wind ?? '—' }} km/h</span><span>🌡 체감 {{ stadiums[0]?.weather?.feelsLike ?? '—' }}°</span></div>
+          <div class="score-content"><div class="score-ring"><strong>{{ viewingScore(favoriteStadium?.weather || stadiums[0]?.weather) ?? '—' }}</strong><small>점</small></div><div><h4>{{ selectedFavorite ? `${selectedFavorite.short} 관람 적합도` : scoreLabel(viewingScore(stadiums[0]?.weather)) }}</h4><p>{{ favoriteStadium?.team || stadiums[0]?.team }} 경기장 기준 · {{ (favoriteStadium?.weather || stadiums[0]?.weather)?.icon || '🌤️' }} {{ (favoriteStadium?.weather || stadiums[0]?.weather)?.temp ?? '—' }}°C</p></div></div>
+          <div class="score-factors"><span>☔ 강수 {{ (favoriteStadium?.weather || stadiums[0]?.weather)?.precipitation ?? '—' }} mm</span><span>💨 바람 {{ (favoriteStadium?.weather || stadiums[0]?.weather)?.wind ?? '—' }} km/h</span><span>🌡 체감 {{ (favoriteStadium?.weather || stadiums[0]?.weather)?.feelsLike ?? '—' }}°</span></div>
         </article>
       </div>
     </section>
@@ -170,7 +180,7 @@ const navigateToStandings = () => {
         <div class="heading-actions"><div class="unit-toggle" role="group" aria-label="온도 단위"><button :class="{ active: temperatureUnit === 'C' }" @click="temperatureUnit = 'C'">°C</button><button :class="{ active: temperatureUnit === 'F' }" @click="temperatureUnit = 'F'">°F</button></div><button class="all-link" @click="navigateToAllStadiums">30개 구장 전체보기 <span>→</span></button></div>
       </div>
       <div class="home-grid">
-        <article v-for="stadium in stadiums.slice(0, 6)" :key="stadium.id" class="home-card" :style="{ '--team-color': stadium.color }" @click="openStadium(stadium)">
+        <article v-for="stadium in displayedStadiums" :key="stadium.id" class="home-card" :style="{ '--team-color': stadium.color }" @click="openStadium(stadium)">
           <div class="card-accent"></div>
           <div class="card-top">
             <div class="logo-frame"><img :src="stadium.logoUrl" :alt="stadium.team"></div>
