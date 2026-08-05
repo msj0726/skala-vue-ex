@@ -1,6 +1,11 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
+  // 1. 루트 경로 접속 시 보여줄 기본 페이지 설정 (Personal Project 메인으로 리다이렉트)
+  {
+    path: '/',
+    redirect: '/personal/',
+  },
   // Personal Project - Main Dashboard
   {
     path: '/personal/',
@@ -37,7 +42,7 @@ const routes = [
         name: 'ExerciseWeatherDetail',
         component: () => import('../views/WeatherDetailView.vue'),
       },
-    ]
+    ],
   },
   // Team Project
   {
@@ -78,7 +83,8 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  // 2. WebHistory 대신 WebHashHistory로 변경하여 GitHub Pages 404 에러 방지
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes,
 })
 
