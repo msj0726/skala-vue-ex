@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: skala-vue
+        working-directory: personal-project
 
     steps:
       - name: Checkout repository
@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: skala-vue/package-lock.json
+          cache-dependency-path: personal-project/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -54,7 +54,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: skala-vue/dist
+          path: personal-project/dist
 
       - name: Deploy to GitHub Pages
         id: deployment
