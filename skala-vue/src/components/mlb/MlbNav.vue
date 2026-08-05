@@ -1,5 +1,10 @@
 <script setup>
 import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useAuth } from '@/services/auth'
+const router = useRouter()
+const { currentUser, logout } = useAuth()
+const signOut = () => { logout(); router.push('/personal/') }
 </script>
 
 <template>
@@ -13,7 +18,8 @@ import { RouterLink } from 'vue-router'
       <RouterLink to="/personal/all-stadiums">구장</RouterLink>
       <RouterLink to="/personal/standings">순위</RouterLink>
     </div>
-    <span class="live-status"><i></i> LIVE DATA</span>
+    <div class="auth-links" v-if="currentUser"><span>{{ currentUser.name }}님</span><button @click="signOut">로그아웃</button></div>
+    <div class="auth-links" v-else><RouterLink to="/personal/login">로그인</RouterLink><RouterLink class="signup-link" to="/personal/signup">회원가입</RouterLink></div>
   </nav>
 </template>
 
@@ -29,6 +35,7 @@ import { RouterLink } from 'vue-router'
 .nav-links a.router-link-exact-active::after { transform: scaleX(1); }
 .live-status { margin-left: auto; display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,.68); font-size: 10px; }
 .live-status i { width: 7px; height: 7px; border-radius: 50%; background: #55d88d; box-shadow: 0 0 0 5px rgba(85,216,141,.12); animation: pulse 2s infinite; }
+.auth-links{margin-left:auto;display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.72);font-size:11px}.auth-links a,.auth-links button{color:#fff;font:inherit;font-weight:800}.auth-links button{padding:7px 10px;border:1px solid rgba(255,255,255,.25);background:transparent;cursor:pointer}.auth-links .signup-link{padding:8px 11px;border-radius:2px;background:#d9473f}
 @keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(85,216,141,0); } }
-@media (max-width: 640px) { .mlb-nav { height: 60px; padding: 0 16px; gap: 20px; } .brand { font-size: 0; gap: 0; } .brand-mark { width: 26px; height: 26px; } .nav-links { gap: 20px; } .live-status { display: none; } }
+@media (max-width: 640px) { .mlb-nav { height: 60px; padding: 0 12px; gap: 13px; } .brand { font-size: 0; gap: 0; } .brand-mark { width: 26px; height: 26px; } .nav-links { gap: 12px; } .auth-links{gap:6px}.auth-links span{display:none}.auth-links a,.auth-links button{font-size:9px}.live-status { display: none; } }
 </style>

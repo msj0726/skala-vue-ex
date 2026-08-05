@@ -22,6 +22,8 @@ const routes = [
     name: 'PersonalStandings',
     component: () => import('../views/PersonalStandings.vue'),
   },
+  { path: '/personal/login', name: 'PersonalLogin', component: () => import('../views/PersonalAuthView.vue') },
+  { path: '/personal/signup', name: 'PersonalSignup', component: () => import('../views/PersonalAuthView.vue') },
   // Personal Exercises - Nested routes for assignments 4 & 5
   {
     path: '/personal/exercises',
