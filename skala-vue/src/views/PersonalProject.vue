@@ -1,11 +1,39 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MlbNav from '@/components/mlb/MlbNav.vue'
 import MlbBallScene from '@/components/mlb/MlbBallScene.vue'
-import { fetchBallparkWeather } from '@/services/mlbApi'
+import { fetchBallparkWeather, fetchTodaysGames } from '@/services/mlbApi'
 
 const router = useRouter()
+const todaysGames = ref([])
+const gamesLoading = ref(true)
+const favoriteTeams = ref(JSON.parse(localStorage.getItem('mlb-favorite-teams') || '[]'))
+const favoritePicker = ref('')
+const favoriteOptions = [
+  { name: 'Los Angeles Dodgers', short: '다저스', logoUrl: 'https://www.mlbstatic.com/team-logos/119.svg' },
+  { name: 'New York Yankees', short: '양키스', logoUrl: 'https://www.mlbstatic.com/team-logos/147.svg' },
+  { name: 'Boston Red Sox', short: '레드삭스', logoUrl: 'https://www.mlbstatic.com/team-logos/111.svg' },
+  { name: 'San Diego Padres', short: '파드리스', logoUrl: 'https://www.mlbstatic.com/team-logos/135.svg' },
+  { name: 'Chicago Cubs', short: '컵스', logoUrl: 'https://www.mlbstatic.com/team-logos/112.svg' },
+]
+const favoriteTeamData = computed(() => favoriteTeams.value.map((name) => favoriteOptions.find((team) => team.name === name)).filter(Boolean))
+const toggleFavorite = (team) => {
+  favoriteTeams.value = favoriteTeams.value.includes(team.name) ? favoriteTeams.value.filter((name) => name !== team.name) : [...favoriteTeams.value, team.name].slice(-3)
+  localStorage.setItem('mlb-favorite-teams', JSON.stringify(favoriteTeams.value))
+}
+const addFavorite = () => {
+  const team = favoriteOptions.find((option) => option.name === favoritePicker.value)
+  if (team) toggleFavorite(team)
+  favoritePicker.value = ''
+}
+const formatGameTime = (value) => value ? new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(new Date(value)) : '시간 미정'
+const getGameWeather = (game) => stadiums.value.find((stadium) => game.venue.toLowerCase().includes(stadium.stadium.toLowerCase().split(' ')[0]))?.weather
+const viewingScore = (weather) => {
+  if (!weather || !Number.isFinite(weather.temp)) return null
+  return Math.max(40, Math.min(98, Math.round(92 - (weather.precipitation || 0) * 16 - Math.max(0, (weather.wind || 0) - 20) * 0.8 - Math.abs(weather.temp - 21) * 1.2)))
+}
+const scoreLabel = (score) => score >= 85 ? '관람하기 좋은 날' : score >= 65 ? '준비하면 괜찮아요' : '날씨를 확인하세요'
 const temperatureUnit = ref('C')
 const formatTemperature = (temp) => {
   if (!Number.isFinite(temp)) return '—'
@@ -67,6 +95,7 @@ onMounted(() => {
     stadium.loading = true
     fetchWeather(stadium)
   })
+  fetchTodaysGames().then((games) => { todaysGames.value = games }).catch(() => { todaysGames.value = [] }).finally(() => { gamesLoading.value = false })
 })
 
 const navigateToAllStadiums = () => {
@@ -102,6 +131,38 @@ const navigateToStandings = () => {
       </div>
       <MlbBallScene class="hero-scene" />
     </header>
+
+    <section class="personal-dashboard">
+      <div class="dashboard-section-heading">
+        <div><p class="eyebrow"><span></span> GAME DAY CONTROL ROOM</p><h2>오늘의 야구를 골라보세요</h2></div>
+        <span class="dashboard-date">{{ new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }) }}</span>
+      </div>
+      <div class="dashboard-grid">
+        <article class="dashboard-panel games-panel">
+          <div class="panel-heading"><div><span class="panel-kicker">TODAY'S GAMES</span><h3>오늘의 경기 일정</h3></div><span class="live-dot">{{ todaysGames.length }} GAMES</span></div>
+          <div v-if="gamesLoading" class="panel-empty">경기 일정을 불러오는 중입니다...</div>
+          <div v-else-if="!todaysGames.length" class="panel-empty">오늘 예정된 경기가 없습니다.</div>
+          <div v-else class="game-list">
+            <div v-for="game in todaysGames.slice(0, 5)" :key="game.id" class="game-row">
+              <div class="game-time"><strong>{{ formatGameTime(game.startTime) }}</strong><small>{{ game.status }}</small></div>
+              <div class="game-team"><img :src="game.away.logoUrl" :alt="game.away.name"><strong>{{ game.away.name }}</strong></div><span class="versus">@</span><div class="game-team home"><img :src="game.home.logoUrl" :alt="game.home.name"><strong>{{ game.home.name }}</strong></div>
+              <small class="game-venue">{{ game.venue }}</small>
+            </div>
+          </div>
+        </article>
+        <article class="dashboard-panel favorites-panel">
+          <div class="panel-heading"><div><span class="panel-kicker">MY TEAMS</span><h3>즐겨찾는 팀</h3></div><span class="favorite-count">{{ favoriteTeams.length }}/3</span></div>
+          <div v-if="favoriteTeamData.length" class="favorite-list"><button v-for="team in favoriteTeamData" :key="team.name" class="favorite-team" @click="toggleFavorite(team)"><img :src="team.logoUrl" :alt="team.name"><span><strong>{{ team.short }}</strong><small>{{ team.name }}</small></span><b>★</b></button></div>
+          <p v-else class="favorite-hint">좋아하는 팀을 추가하면 메인 화면에서 바로 확인할 수 있어요.</p>
+          <div class="favorite-add"><select v-model="favoritePicker" aria-label="즐겨찾기 팀 선택"><option value="">팀 선택...</option><option v-for="team in favoriteOptions.filter((option) => !favoriteTeams.includes(option.name))" :key="team.name" :value="team.name">{{ team.short }} · {{ team.name }}</option></select><button type="button" @click="addFavorite" :disabled="!favoritePicker || favoriteTeams.length >= 3">추가</button></div>
+        </article>
+        <article class="dashboard-panel score-panel">
+          <div class="panel-heading"><div><span class="panel-kicker">BALLPARK COMFORT</span><h3>오늘의 관람 적합도</h3></div><span class="score-badge">LIVE</span></div>
+          <div class="score-content"><div class="score-ring"><strong>{{ viewingScore(stadiums[0]?.weather) ?? '—' }}</strong><small>점</small></div><div><h4>{{ scoreLabel(viewingScore(stadiums[0]?.weather)) }}</h4><p>{{ stadiums[0]?.team }} 경기장 기준 · {{ stadiums[0]?.weather?.icon || '🌤️' }} {{ stadiums[0]?.weather?.temp ?? '—' }}°C</p></div></div>
+          <div class="score-factors"><span>☔ 강수 {{ stadiums[0]?.weather?.precipitation ?? '—' }} mm</span><span>💨 바람 {{ stadiums[0]?.weather?.wind ?? '—' }} km/h</span><span>🌡 체감 {{ stadiums[0]?.weather?.feelsLike ?? '—' }}°</span></div>
+        </article>
+      </div>
+    </section>
 
     <main class="home-content">
       <div class="content-heading">
@@ -578,6 +639,9 @@ const navigateToStandings = () => {
 .home-content { max-width:1400px; margin:0 auto; padding:80px 28px 110px; }.content-heading { display:flex; justify-content:space-between; align-items:end; margin-bottom:28px; }.content-heading h2 { margin:0; font-size:38px; letter-spacing:0; }.heading-actions{display:flex;align-items:center;gap:22px}.unit-toggle{display:inline-flex;padding:2px;border:1px solid #cdd1ce;background:#e8eae6;border-radius:3px}.unit-toggle button{min-width:30px;height:24px;padding:0 7px;border:0;background:transparent;color:#7d8588;font-size:10px;font-weight:800;cursor:pointer}.unit-toggle button.active{background:#17232a;color:#fff;border-radius:2px}.all-link { padding:0 0 7px; border:0; border-bottom:1px solid #b7b9b8; background:transparent; color:#252a2e; font-weight:700; cursor:pointer; }
 .home-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }.home-card { position:relative; min-width:0; padding:24px; overflow:hidden; border:1px solid #d9dad6; border-radius:4px; background:#fafaf8; transition:transform .25s,box-shadow .25s; }.home-card:hover { transform:translateY(-5px); box-shadow:0 18px 36px rgba(24,30,33,.11); }.card-accent { position:absolute; inset:0 auto 0 0; width:3px; background:var(--team-color); }.card-top { display:flex; align-items:start; justify-content:space-between; }.logo-frame { width:58px; height:58px; display:grid; place-items:center; }.logo-frame img { max-width:100%; max-height:100%; filter:drop-shadow(0 7px 8px rgba(0,0,0,.12)); }.division-label { padding:5px 7px; color:#70767b; border:1px solid #dedfdb; font-size:9px; font-weight:800; }.card-team { display:flex; gap:9px; align-items:baseline; margin-top:20px; }.card-team h3 { margin:0; font-size:24px; line-height:1; }.card-team span { color:#8b9094; font-size:12px; }.park-name { margin:12px 0 4px; color:#444b50; font-size:13px; font-weight:700; }.park-city { display:flex; align-items:center; gap:7px; margin:0; color:#8b9094; font-size:11px; }.park-city i { width:6px;height:6px;border-radius:50%;background:#dc4038; }.condition-row { display:flex; justify-content:space-between; align-items:end; margin-top:24px; padding-top:18px; border-top:1px solid #e2e2df; }.weather-reading { display:flex; align-items:center; gap:9px; }.weather-reading span { font-size:27px; }.weather-reading strong { font-size:35px; line-height:1; }.weather-meta { display:grid; gap:5px; color:#858b8f; font-size:8px; font-weight:800; text-align:right; letter-spacing:.06em; }.card-skeleton { height:56px; margin-top:24px; padding-top:18px; border-top:1px solid #e2e2df; }.card-skeleton i { display:block; height:8px; width:50%; margin:5px 0; background:#e6e6e2; animation:blink 1.4s infinite alternate; }
 @keyframes blink { to { opacity:.35; } }
-@media(max-width:980px){.home-hero{grid-template-columns:1fr; padding-top:110px}.hero-copy{padding-top:35px}.hero-scene{margin-top:-10px}.home-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:640px){.home-hero{min-height:auto;padding:98px 18px 30px}.hero-copy h1{font-size:48px}.hero-description{font-size:14px}.hero-stats div{min-width:0;flex:1;margin-right:12px;padding-right:12px}.hero-actions{gap:18px}.home-content{padding:58px 16px 80px}.content-heading{align-items:start}.content-heading h2{font-size:30px}.heading-actions{gap:10px;align-items:end;flex-direction:column}.all-link{font-size:11px}.home-grid{grid-template-columns:1fr}.home-card{padding:21px}}
+ .personal-dashboard { max-width:1400px; margin:0 auto; padding:48px 28px 0; }
+.dashboard-section-heading { display:flex; justify-content:space-between; align-items:end; margin-bottom:18px; }.dashboard-section-heading h2 { margin:0; color:#17232a; font-size:32px; }.dashboard-date { color:#7c8588; font-size:12px; font-weight:700; }
+.dashboard-grid { display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:14px; }.dashboard-panel { min-height:260px; padding:22px; border:1px solid #d9dad6; border-radius:5px; background:#fff; box-shadow:0 10px 26px rgba(30,40,40,.04); }.panel-heading { display:flex; justify-content:space-between; align-items:start; padding-bottom:16px; border-bottom:1px solid #ecece8; }.panel-kicker { color:#9a9f9d; font-size:9px; font-weight:900; letter-spacing:.14em; }.panel-heading h3 { margin:5px 0 0; color:#17232a; font-size:20px; }.live-dot,.favorite-count,.score-badge { color:#d8493e; font-size:9px; font-weight:900; letter-spacing:.08em; }.live-dot::before { content:' '; display:inline-block; width:6px; height:6px; margin-right:5px; border-radius:50%; background:#d8493e; }.panel-empty,.favorite-hint { padding:36px 4px; color:#899195; font-size:13px; }.game-list { display:grid; }.game-row { display:grid; grid-template-columns:62px minmax(105px,1fr) 16px minmax(105px,1fr); gap:8px; align-items:center; padding:13px 0; border-bottom:1px solid #f0f0ec; }.game-row:last-child { border:0; }.game-time strong,.game-time small { display:block; }.game-time strong { color:#17232a; font-size:12px; }.game-time small,.game-venue { color:#949b9d; font-size:9px; }.game-team { display:flex; align-items:center; gap:7px; min-width:0; }.game-team img { width:25px; height:25px; object-fit:contain; }.game-team strong { overflow:hidden; color:#323b40; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }.game-team.home { justify-content:flex-end; text-align:right; }.versus { color:#d8493e; font-size:11px; font-weight:900; }.game-venue { grid-column:2 / -1; margin-top:-5px; }.favorite-list { display:grid; gap:6px; padding:13px 0; }.favorite-team { display:flex; align-items:center; gap:10px; width:100%; padding:7px; border:0; background:#f7f8f5; text-align:left; cursor:pointer; }.favorite-team img { width:30px; height:30px; object-fit:contain; }.favorite-team span { flex:1; }.favorite-team strong,.favorite-team small { display:block; }.favorite-team strong { color:#263238; font-size:12px; }.favorite-team small { color:#949b9d; font-size:9px; }.favorite-team b { color:#dfa82f; }.favorite-add { display:flex; gap:6px; margin-top:auto; }.favorite-add select { flex:1; min-width:0; padding:8px; border:1px solid #dfe2de; color:#596367; background:#fff; font-size:11px; }.favorite-add button { padding:0 12px; border:0; color:#fff; background:#17232a; font-size:11px; font-weight:700; cursor:pointer; }.favorite-add button:disabled { opacity:.4; cursor:not-allowed; }.score-content { display:flex; align-items:center; gap:16px; padding:20px 0 14px; }.score-ring { width:94px; height:94px; display:grid; place-content:center; flex-shrink:0; border:7px solid #d8e6db; border-top-color:#4d9c70; border-right-color:#4d9c70; border-radius:50%; text-align:center; }.score-ring strong { color:#347956; font-size:31px; line-height:1; }.score-ring small { color:#71907c; font-size:10px; }.score-content h4 { margin:0 0 5px; color:#293936; font-size:15px; }.score-content p { margin:0; color:#8c9795; font-size:10px; line-height:1.5; }.score-factors { display:flex; flex-wrap:wrap; gap:7px; padding-top:13px; border-top:1px solid #ecece8; color:#77817f; font-size:9px; }
+@media(max-width:980px){.home-hero{grid-template-columns:1fr; padding-top:110px}.hero-copy{padding-top:35px}.hero-scene{margin-top:-10px}.dashboard-grid{grid-template-columns:1fr 1fr}.games-panel{grid-column:span 2}.home-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.home-hero{min-height:auto;padding:98px 18px 30px}.hero-copy h1{font-size:48px}.hero-description{font-size:14px}.hero-stats div{min-width:0;flex:1;margin-right:12px;padding-right:12px}.hero-actions{gap:18px}.personal-dashboard{padding:38px 16px 0}.dashboard-section-heading{display:block}.dashboard-section-heading h2{font-size:25px}.dashboard-date{display:block;margin-top:8px}.dashboard-grid{grid-template-columns:1fr}.games-panel{grid-column:auto}.dashboard-panel{padding:18px}.game-row{grid-template-columns:55px minmax(80px,1fr) 12px minmax(80px,1fr)}.game-team strong{font-size:10px}.home-content{padding:58px 16px 80px}.content-heading{align-items:start}.content-heading h2{font-size:30px}.heading-actions{gap:10px;align-items:end;flex-direction:column}.all-link{font-size:11px}.home-grid{grid-template-columns:1fr}.home-card{padding:21px}}
 </style>

@@ -61,3 +61,19 @@ export const fetchCurrentMlbStandings = async (season = new Date().getFullYear()
   }
   return result
 }
+
+export const fetchTodaysGames = async () => {
+  const date = new Date().toISOString().slice(0, 10)
+  const params = new URLSearchParams({ sportId: '1', date, hydrate: 'team,venue,probablePitcher' })
+  const response = await fetch(`https://statsapi.mlb.com/api/v1/schedule?${params}`)
+  if (!response.ok) throw new Error('MLB schedule request failed')
+  const data = await response.json()
+  return (data.dates?.[0]?.games ?? []).map((game) => ({
+    id: game.gamePk,
+    status: game.status?.abstractGameState ?? game.status?.detailedState ?? '예정',
+    startTime: game.gameDate,
+    away: { name: game.teams?.away?.team?.name ?? '원정팀', id: game.teams?.away?.team?.id, logoUrl: `https://www.mlbstatic.com/team-logos/${game.teams?.away?.team?.id}.svg` },
+    home: { name: game.teams?.home?.team?.name ?? '홈팀', id: game.teams?.home?.team?.id, logoUrl: `https://www.mlbstatic.com/team-logos/${game.teams?.home?.team?.id}.svg` },
+    venue: game.venue?.name ?? '구장 미정',
+  }))
+}
