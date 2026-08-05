@@ -36,11 +36,11 @@ const goBack = () => {
       <h1>프로젝트 선택</h1>
       <div class="project-cards">
         <div class="project-card" @click="selectProject('personal')">
-          <h2>👤 개인 과제</h2>
-          <p>날씨 대시보드 + 라우터</p>
+          <h2>👤 개인 프로젝트</h2>
+          <p>날씨 대시보드 + MLB</p>
         </div>
         <div class="project-card" @click="selectProject('team')">
-          <h2>👥 팀 과제</h2>
+          <h2>👥 2일차 팀 프로젝트</h2>
           <p>협업 프로젝트</p>
         </div>
       </div>
